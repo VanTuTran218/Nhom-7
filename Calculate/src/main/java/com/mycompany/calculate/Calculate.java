@@ -18,27 +18,27 @@ import java.util.*;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public class Calculate extends JFrame implements ActionListener {
+public class Calculate extends JFrame implements ActionListener, KeyListener {
     private JTextField inputField, resultField, modeField, searchField;
     private JTextArea historyArea;
-    private JButton searchButton, deleteButton;
+    private JButton searchButton, deleteButton, themeButton, fontButton, colorButton;
     private String expression = "";
     private boolean calculated = false;
     private boolean degreeMode = true;
+    private boolean darkMode = false;
     private final String HISTORY_FILE = "history.txt";
 
     private List<String> historyList = new ArrayList<>();
 
     public Calculate() {
-        setTitle("Calculate - Scientific with History Save");
-        setSize(500, 750);
+        setTitle("Calculate - Full Feature");
+        setSize(500, 800);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLayout(new BorderLayout());
         setResizable(true);
         setLocationRelativeTo(null);
 
-        // Panel hien thi
-        JPanel displayPanel = new JPanel(new GridLayout(4, 1));
+        JPanel displayPanel = new JPanel(new GridLayout(6, 1));
         modeField = new JTextField("Che do: Do");
         modeField.setFont(new Font("Arial", Font.BOLD, 16));
         modeField.setHorizontalAlignment(JTextField.CENTER);
@@ -54,13 +54,27 @@ public class Calculate extends JFrame implements ActionListener {
         resultField.setHorizontalAlignment(JTextField.RIGHT);
         resultField.setEditable(false);
 
-        // Tim kiem lich su
         JPanel searchPanel = new JPanel(new BorderLayout());
         searchField = new JTextField();
         searchButton = new JButton("Tim kiem");
         searchButton.addActionListener(e -> searchHistory());
         deleteButton = new JButton("Xoa dong");
         deleteButton.addActionListener(e -> deleteSelectedHistory());
+
+        JPanel themePanel = new JPanel(new GridLayout(1, 3));
+        themeButton = new JButton("Dark/Light");
+        themeButton.addActionListener(e -> toggleTheme());
+
+        fontButton = new JButton("Font");
+        fontButton.addActionListener(e -> chooseFont());
+
+        colorButton = new JButton("Mau");
+        colorButton.addActionListener(e -> chooseColor());
+
+        themePanel.add(themeButton);
+        themePanel.add(fontButton);
+        themePanel.add(colorButton);
+
         searchPanel.add(searchField, BorderLayout.CENTER);
         searchPanel.add(searchButton, BorderLayout.EAST);
         searchPanel.add(deleteButton, BorderLayout.WEST);
@@ -69,9 +83,10 @@ public class Calculate extends JFrame implements ActionListener {
         displayPanel.add(inputField);
         displayPanel.add(resultField);
         displayPanel.add(searchPanel);
+        displayPanel.add(themePanel);
+
         add(displayPanel, BorderLayout.NORTH);
 
-        // Tao cac nut
         JPanel panel = new JPanel(new GridLayout(7, 4, 5, 5));
         String[] buttons = {
             "C", "←", "%", "/",
@@ -91,19 +106,25 @@ public class Calculate extends JFrame implements ActionListener {
         }
         add(panel, BorderLayout.CENTER);
 
-        // Khu vuc hien thi lich su
         historyArea = new JTextArea(10, 20);
         historyArea.setEditable(false);
         JScrollPane scrollPane = new JScrollPane(historyArea);
         add(scrollPane, BorderLayout.SOUTH);
 
-        // Load lich su tu file
         loadHistory();
+        applyTheme();
+        addKeyListener(this);
+        setFocusable(true);
+        requestFocusInWindow();
     }
 
     @Override
     public void actionPerformed(ActionEvent e) {
         String command = e.getActionCommand();
+        handleInput(command);
+    }
+
+    private void handleInput(String command) {
         if ((command.charAt(0) >= '0' && command.charAt(0) <= '9') || command.equals(".")) {
             if (calculated) {
                 expression = "";
@@ -329,6 +350,68 @@ public class Calculate extends JFrame implements ActionListener {
         }
         return result;
     }
+
+    private void toggleTheme() {
+        darkMode = !darkMode;
+        applyTheme();
+    }
+
+    private void applyTheme() {
+        Color bg = darkMode ? Color.DARK_GRAY : Color.WHITE;
+        Color fg = darkMode ? Color.WHITE : Color.BLACK;
+
+        inputField.setBackground(bg);
+        inputField.setForeground(fg);
+        resultField.setBackground(bg);
+        resultField.setForeground(fg);
+        modeField.setBackground(bg);
+        modeField.setForeground(fg);
+        searchField.setBackground(bg);
+        searchField.setForeground(fg);
+        historyArea.setBackground(bg);
+        historyArea.setForeground(fg);
+
+        getContentPane().setBackground(bg);
+    }
+
+    private void chooseFont() {
+        String fontName = JOptionPane.showInputDialog(this, "Nhap ten phong chu:", "Arial");
+        if (fontName != null && !fontName.isEmpty()) {
+            Font font = new Font(fontName, Font.BOLD, 18);
+            inputField.setFont(font);
+            resultField.setFont(font);
+            modeField.setFont(font);
+            historyArea.setFont(font);
+            searchField.setFont(font);
+        }
+    }
+
+    private void chooseColor() {
+        Color color = JColorChooser.showDialog(this, "Chon mau chu", Color.BLACK);
+        if (color != null) {
+            inputField.setForeground(color);
+            resultField.setForeground(color);
+            modeField.setForeground(color);
+            searchField.setForeground(color);
+            historyArea.setForeground(color);
+        }
+    }
+
+    // shortcut ban phim
+    @Override
+    public void keyTyped(KeyEvent e) {
+        char key = e.getKeyChar();
+        if (Character.isDigit(key) || "+-*/.".indexOf(key) != -1) {
+            handleInput(String.valueOf(key));
+        } else if (key == '\n') {
+            handleInput("=");
+        } else if (key == '\b') {
+            handleInput("←");
+        }
+    }
+
+    @Override public void keyPressed(KeyEvent e) {}
+    @Override public void keyReleased(KeyEvent e) {}
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
