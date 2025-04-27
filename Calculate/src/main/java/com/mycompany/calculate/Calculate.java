@@ -1,14 +1,5 @@
-/*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- */
-
 package com.mycompany.calculate;
 
-/**
- *
- * @author ADMIN
- */
-// khai báo     
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
@@ -16,19 +7,21 @@ import java.io.*;
 import java.nio.file.*;
 import java.util.*;
 import java.util.List;
+import java.util.function.DoubleUnaryOperator;
 import java.util.stream.Collectors;
+import java.awt.datatransfer.*;
 
 public class Calculate extends JFrame implements ActionListener, KeyListener {
     private JTextField inputField, resultField, modeField, searchField;
     private JTextArea historyArea;
-    private JButton searchButton, deleteButton, themeButton, fontButton, colorButton;
+    private JButton searchButton, deleteButton, themeButton, fontButton, colorButton, copyButton, pasteButton;
     private String expression = "";
     private boolean calculated = false;
     private boolean degreeMode = true;
     private boolean darkMode = false;
     private final String HISTORY_FILE = "history.txt";
-
     private List<String> historyList = new ArrayList<>();
+    private int cursorPos = 0; // Track cursor position in expression
 
     public Calculate() {
         setTitle("Calculate - Full Feature");
@@ -38,7 +31,7 @@ public class Calculate extends JFrame implements ActionListener, KeyListener {
         setResizable(true);
         setLocationRelativeTo(null);
 
-        JPanel displayPanel = new JPanel(new GridLayout(6, 1));
+        JPanel displayPanel = new JPanel(new GridLayout(7, 1));
         modeField = new JTextField("Che do: Do");
         modeField.setFont(new Font("Arial", Font.BOLD, 16));
         modeField.setHorizontalAlignment(JTextField.CENTER);
@@ -47,7 +40,8 @@ public class Calculate extends JFrame implements ActionListener, KeyListener {
         inputField = new JTextField();
         inputField.setFont(new Font("Arial", Font.BOLD, 24));
         inputField.setHorizontalAlignment(JTextField.RIGHT);
-        inputField.setEditable(false);
+        inputField.setEditable(true); // Allow cursor interaction
+        inputField.addCaretListener(e -> updateCursorPosition());
 
         resultField = new JTextField();
         resultField.setFont(new Font("Arial", Font.BOLD, 32));
@@ -75,6 +69,14 @@ public class Calculate extends JFrame implements ActionListener, KeyListener {
         themePanel.add(fontButton);
         themePanel.add(colorButton);
 
+        JPanel copyPastePanel = new JPanel(new GridLayout(1, 2));
+        copyButton = new JButton("Copy");
+        copyButton.addActionListener(e -> copyToClipboard());
+        pasteButton = new JButton("Paste");
+        pasteButton.addActionListener(e -> pasteFromClipboard());
+        copyPastePanel.add(copyButton);
+        copyPastePanel.add(pasteButton);
+
         searchPanel.add(searchField, BorderLayout.CENTER);
         searchPanel.add(searchButton, BorderLayout.EAST);
         searchPanel.add(deleteButton, BorderLayout.WEST);
@@ -84,23 +86,27 @@ public class Calculate extends JFrame implements ActionListener, KeyListener {
         displayPanel.add(resultField);
         displayPanel.add(searchPanel);
         displayPanel.add(themePanel);
+        displayPanel.add(copyPastePanel);
 
         add(displayPanel, BorderLayout.NORTH);
 
-        JPanel panel = new JPanel(new GridLayout(7, 4, 5, 5));
+        JPanel panel = new JPanel(new GridLayout(8, 4, 5, 5));
         String[] buttons = {
-            "C", "←", "%", "/",
-            "7", "8", "9", "*",
-            "4", "5", "6", "-",
-            "1", "2", "3", "+",
-            "0", ".", "xʸ", "√",
-            "n!", "log", "ln", "sin",
-            "cos", "tan", "cot", "Deg/Rad",
-            "="
+            "CE", "C", "←", "→", // Replaced Deg/Rad with →
+            "7", "8", "9", "/",
+            "4", "5", "6", "*",
+            "1", "2", "3", "-",
+            "0", ".", "=", "+",
+            "sin", "cos", "tan", "cot",
+            "log", "ln", "√", "n!",
+            "xʸ", "Deg/Rad", "", "" // Moved Deg/Rad here
         };
         for (String text : buttons) {
             JButton button = new JButton(text);
             button.setFont(new Font("Arial", Font.BOLD, 18));
+            if (text.isEmpty()) {
+                button.setVisible(false);
+            }
             button.addActionListener(this);
             panel.add(button);
         }
@@ -114,13 +120,19 @@ public class Calculate extends JFrame implements ActionListener, KeyListener {
         loadHistory();
         applyTheme();
         addKeyListener(this);
+        inputField.addKeyListener(this);
         setFocusable(true);
-        requestFocusInWindow();
+        inputField.requestFocusInWindow();
+    }
+
+    private void updateCursorPosition() {
+        cursorPos = inputField.getCaretPosition();
     }
 
     @Override
     public void actionPerformed(ActionEvent e) {
         String command = e.getActionCommand();
+        if (command.isEmpty()) return;
         handleInput(command);
     }
 
@@ -128,23 +140,39 @@ public class Calculate extends JFrame implements ActionListener, KeyListener {
         if ((command.charAt(0) >= '0' && command.charAt(0) <= '9') || command.equals(".")) {
             if (calculated) {
                 expression = "";
+                cursorPos = 0;
                 calculated = false;
             }
-            expression += command;
+            expression = expression.substring(0, cursorPos) + command + expression.substring(cursorPos);
+            cursorPos += command.length();
         } else if (command.equals("C")) {
             expression = "";
+            cursorPos = 0;
             resultField.setText("");
+        } else if (command.equals("CE")) {
+            if (expression.isEmpty()) return;
+            String[] tokens = expression.trim().split("\\s+");
+            if (tokens.length <= 1) {
+                expression = "";
+                cursorPos = 0;
+            } else {
+                expression = String.join(" ", Arrays.copyOf(tokens, tokens.length - 1));
+                cursorPos = expression.length();
+            }
         } else if (command.equals("←")) {
-            if (!expression.isEmpty()) {
-                expression = expression.substring(0, expression.length() - 1);
+            if (cursorPos > 0 && !expression.isEmpty()) {
+                expression = expression.substring(0, cursorPos - 1) + expression.substring(cursorPos);
+                cursorPos--;
+            }
+        } else if (command.equals("→")) {
+            if (cursorPos < expression.length() && !expression.isEmpty()) {
+                expression = expression.substring(0, cursorPos) + expression.substring(cursorPos + 1);
             }
         } else if (command.equals("√")) {
             calculateUnary(Math::sqrt, "√");
-        } else if (command.equals("%")) {
-            calculateUnary(x -> x / 100, "%");
         } else if (command.equals("n!")) {
             try {
-                int value = Integer.parseInt(expression);
+                int value = Integer.parseInt(expression.trim());
                 if (value < 0) {
                     resultField.setText("Loi");
                 } else {
@@ -152,6 +180,7 @@ public class Calculate extends JFrame implements ActionListener, KeyListener {
                     addHistory(value + "! = " + result);
                     resultField.setText(String.valueOf(result));
                     expression = "";
+                    cursorPos = 0;
                     calculated = true;
                 }
             } catch (Exception ex) {
@@ -163,10 +192,8 @@ public class Calculate extends JFrame implements ActionListener, KeyListener {
             calculateUnary(Math::log, "ln");
         } else if (command.equals("sin") || command.equals("cos") || command.equals("tan") || command.equals("cot")) {
             try {
-                double value = Double.parseDouble(expression);
-                if (degreeMode) {
-                    value = Math.toRadians(value);
-                }
+                double value = Double.parseDouble(expression.trim());
+                if (degreeMode) value = Math.toRadians(value);
                 double result = switch (command) {
                     case "sin" -> Math.sin(value);
                     case "cos" -> Math.cos(value);
@@ -177,15 +204,15 @@ public class Calculate extends JFrame implements ActionListener, KeyListener {
                 addHistory(command + "(" + expression + ") = " + result);
                 resultField.setText(String.valueOf(result));
                 expression = "";
+                cursorPos = 0;
                 calculated = true;
             } catch (Exception ex) {
                 resultField.setText("Loi");
             }
         } else if (command.equals("Deg/Rad")) {
             degreeMode = !degreeMode;
-            String mode = degreeMode ? "Do" : "Radian";
-            modeField.setText("Che do: " + mode);
-            addHistory("Chuyen che do: " + mode);
+            modeField.setText("Che do: " + (degreeMode ? "Do" : "Radian"));
+            addHistory("Chuyen che do: " + (degreeMode ? "Do" : "Radian"));
         } else if (command.equals("=")) {
             try {
                 double result = evaluate(expression);
@@ -195,6 +222,7 @@ public class Calculate extends JFrame implements ActionListener, KeyListener {
                     addHistory(expression + " = " + result);
                     resultField.setText(String.valueOf(result));
                     expression = "";
+                    cursorPos = 0;
                     calculated = true;
                 }
             } catch (Exception ex) {
@@ -203,25 +231,30 @@ public class Calculate extends JFrame implements ActionListener, KeyListener {
         } else {
             if (calculated) {
                 expression = "";
+                cursorPos = 0;
                 calculated = false;
             }
-            expression += " " + command + " ";
+            String toAdd = " " + command + " ";
+            expression = expression.substring(0, cursorPos) + toAdd + expression.substring(cursorPos);
+            cursorPos += toAdd.length();
         }
         inputField.setText(expression);
+        inputField.setCaretPosition(cursorPos);
     }
 
-    private void calculateUnary(UnaryOperator operator, String label) {
+    private void calculateUnary(DoubleUnaryOperator operator, String label) {
         try {
-            double value = Double.parseDouble(expression);
+            double value = Double.parseDouble(expression.trim());
             if (label.equals("√") && value < 0) {
                 resultField.setText("Loi");
             } else if ((label.equals("log") || label.equals("ln")) && value <= 0) {
                 resultField.setText("Loi");
             } else {
-                double result = operator.apply(value);
+                double result = operator.applyAsDouble(value);
                 addHistory(label + "(" + expression + ") = " + result);
                 resultField.setText(String.valueOf(result));
                 expression = "";
+                cursorPos = 0;
                 calculated = true;
             }
         } catch (Exception ex) {
@@ -242,31 +275,23 @@ public class Calculate extends JFrame implements ActionListener, KeyListener {
             return;
         }
         List<String> filtered = historyList.stream()
-            .filter(s -> s.contains(keyword))
-            .collect(Collectors.toList());
-        historyArea.setText("");
-        for (String line : filtered) {
-            historyArea.append(line + "\n");
-        }
+                .filter(s -> s.contains(keyword))
+                .collect(Collectors.toList());
+        historyArea.setText(String.join("\n", filtered));
     }
 
     private void deleteSelectedHistory() {
         String keyword = searchField.getText();
         if (keyword.isEmpty()) return;
-
         historyList = historyList.stream()
-            .filter(s -> !s.contains(keyword))
-            .collect(Collectors.toList());
-
+                .filter(s -> !s.contains(keyword))
+                .collect(Collectors.toList());
         saveHistory();
         reloadHistory();
     }
 
     private void reloadHistory() {
-        historyArea.setText("");
-        for (String line : historyList) {
-            historyArea.append(line + "\n");
-        }
+        historyArea.setText(String.join("\n", historyList));
     }
 
     private void loadHistory() {
@@ -302,7 +327,7 @@ public class Calculate extends JFrame implements ActionListener, KeyListener {
     private double calculate(String expression) {
         Stack<Double> numbers = new Stack<>();
         Stack<Character> operators = new Stack<>();
-        String[] tokens = expression.split(" ");
+        String[] tokens = expression.trim().split("\\s+");
 
         for (String token : tokens) {
             if (token.matches("\\d+(\\.\\d+)?")) {
@@ -397,7 +422,42 @@ public class Calculate extends JFrame implements ActionListener, KeyListener {
         }
     }
 
-    // shortcut ban phim
+    private void copyToClipboard() {
+        String resultText = resultField.getText();
+        if (!resultText.isEmpty() && !resultText.equals("Loi")) {
+            StringSelection stringSelection = new StringSelection(resultText);
+            Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+            clipboard.setContents(stringSelection, null);
+            addHistory("Copied: " + resultText);
+        }
+    }
+
+    private void pasteFromClipboard() {
+        try {
+            Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+            Transferable contents = clipboard.getContents(null);
+            if (contents != null && contents.isDataFlavorSupported(DataFlavor.stringFlavor)) {
+                String pastedText = (String) contents.getTransferData(DataFlavor.stringFlavor);
+                if (pastedText.matches("-?\\d+(\\.\\d+)?")) {
+                    if (calculated) {
+                        expression = "";
+                        cursorPos = 0;
+                        calculated = false;
+                    }
+                    expression = expression.substring(0, cursorPos) + pastedText + expression.substring(cursorPos);
+                    cursorPos += pastedText.length();
+                    inputField.setText(expression);
+                    inputField.setCaretPosition(cursorPos);
+                    addHistory("Pasted: " + pastedText);
+                } else {
+                    addHistory("Paste failed: Invalid number");
+                }
+            }
+        } catch (Exception ex) {
+            addHistory("Paste failed: " + ex.getMessage());
+        }
+    }
+
     @Override
     public void keyTyped(KeyEvent e) {
         char key = e.getKeyChar();
@@ -410,17 +470,20 @@ public class Calculate extends JFrame implements ActionListener, KeyListener {
         }
     }
 
-    @Override public void keyPressed(KeyEvent e) {}
-    @Override public void keyReleased(KeyEvent e) {}
+    @Override
+    public void keyPressed(KeyEvent e) {
+        if (e.getKeyCode() == KeyEvent.VK_DELETE) {
+            handleInput("→");
+        }
+    }
+
+    @Override
+    public void keyReleased(KeyEvent e) {}
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
             Calculate calc = new Calculate();
             calc.setVisible(true);
         });
-    }
-
-    private interface UnaryOperator {
-        double apply(double x);
     }
 }
